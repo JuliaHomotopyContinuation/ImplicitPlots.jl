@@ -1,6 +1,6 @@
 module ImplicitPlots
 
-export implicit_plot, implicit_plot!, implicit_curve!, ImplicitFunction
+export implicit_plot, implicit_plot!, implicit_curve!, implicit_surface!, ImplicitFunction
 
 import Contour
 using RecipesBase
@@ -19,7 +19,8 @@ struct ImplicitFunction{N,F}
 end
 ImplicitFunction{N}(f) where {N} = ImplicitFunction{N,typeof(f)}(f)
 (IF::ImplicitFunction{2})(x, y) = IF.f(x, y)
-(IF::ImplicitFunction{3})(x, y, z) = IF.f(x, y)
+(IF::ImplicitFunction{3})(x, y, z) = IF.f(x, y, z)
+ImplicitFunction(f::ImplicitFunction) = f
 
 ImplicitFunction(f::MP.AbstractPolynomialLike) = ImplicitFunction(SP.Polynomial(f))
 function ImplicitFunction(f::SP.Polynomial)
@@ -32,19 +33,13 @@ function ImplicitFunction(f::SP.Polynomial)
     end
 end
 function ImplicitFunction(f)
-    nargs = 0
-    try
-        f(1.0, 1.0)
-        nargs = 2
-    catch e
-        try
-            f(1.0, 1.0, 1.0)
-            nargs = 3
-        catch e
-            throw(ArgumentError("Provided function does not accept 2 or 3 arguments."))
-        end
+    if applicable(f, 1.0, 1.0)
+        ImplicitFunction{2}(f)
+    elseif applicable(f, 1.0, 1.0, 1.0)
+        ImplicitFunction{3}(f)
+    else
+        throw(ArgumentError("Provided function does not accept 2 or 3 arguments."))
     end
-    ImplicitFunction{nargs}(f)
 end
 
 @recipe function implicit(f::ImplicitFunction{2}; aspect_ratio = :equal, resolution = 400)
@@ -61,10 +56,9 @@ end
     ry = range(ylims[1]; stop = ylims[2], length = resolution)
     z = [f(x, y) for x in rx, y in ry]
 
-    nplot = plotattributes[:plot_object].n
     lvl = Contour.contour(collect(rx), collect(ry), z, 0.0)
     lines = Contour.lines(lvl)
-    !isempty(lines) || return p
+    isempty(lines) && return (Float64[], Float64[])
 
     clr = get(plotattributes, :linecolor, :dodgerblue)
     for (k, line) in enumerate(lines)
@@ -79,9 +73,32 @@ end
         end
     end
 end
-implicit_plot(f; kwargs...) = RecipesBase.plot(ImplicitFunction(f); kwargs...)
-implicit_plot!(f; kwargs...) = RecipesBase.plot!(ImplicitFunction(f); kwargs...)
-implicit_plot!(p::RecipesBase.AbstractPlot, f; kwargs...) =
-    RecipesBase.plot!(p, ImplicitFunction(f); kwargs...)
+"""
+    implicit_plot(f; kwargs...)
+
+Plot the zero set of a two- or three-variable function or polynomial. Plane curves
+use Plots; surfaces use Makie (load a backend such as GLMakie or CairoMakie first).
+Surface plots return a Makie `Figure`. See [`implicit_surface!`](@ref).
+"""
+implicit_plot(f; kwargs...) = implicit_plot(ImplicitFunction(f); kwargs...)
+implicit_plot(f::ImplicitFunction{2}; kwargs...) = RecipesBase.plot(f; kwargs...)
+implicit_plot!(f; kwargs...) = implicit_plot!(ImplicitFunction(f); kwargs...)
+implicit_plot!(f::ImplicitFunction{2}; kwargs...) = RecipesBase.plot!(f; kwargs...)
+implicit_plot!(p, f; kwargs...) = implicit_plot!(p, ImplicitFunction(f); kwargs...)
+implicit_plot!(p::RecipesBase.AbstractPlot, f::ImplicitFunction{2}; kwargs...) =
+    RecipesBase.plot!(p, f; kwargs...)
+implicit_plot!(p, f::ImplicitFunction{2}; kwargs...) =
+    throw(ArgumentError("A plane curve must be added to a Plots plot."))
+
+implicit_curve!(f; kwargs...) = implicit_curve!(ImplicitFunction(f); kwargs...)
+implicit_curve!(f::ImplicitFunction{2}; kwargs...) = implicit_plot!(f; kwargs...)
+implicit_curve!(p, f; kwargs...) = implicit_curve!(p, ImplicitFunction(f); kwargs...)
+implicit_curve!(p, f::ImplicitFunction{2}; kwargs...) = implicit_plot!(p, f; kwargs...)
+implicit_curve!(f::ImplicitFunction; kwargs...) =
+    throw(ArgumentError("A plane curve requires two variables."))
+implicit_curve!(p, f::ImplicitFunction; kwargs...) =
+    throw(ArgumentError("A plane curve requires two variables."))
+
+include("3d.jl")
 
 end # module
