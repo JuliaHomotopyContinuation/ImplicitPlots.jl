@@ -1,7 +1,7 @@
 name = "ImplicitPlots"
 uuid = "55ecb840-b828-11e9-1645-43f4a9f9ace7"
 authors = ["Paul Breiding <pbreiding@uni-osnabrueck.de>, Sascha Timme <sascha@timme.xyz>"]
-version = "0.2.3"
+version = "0.3"
 
 [deps]
 Contour = "d38c429a-6771-53c6-b99e-75d170b6e991"
